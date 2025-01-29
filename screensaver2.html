@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+<canvas id="screen"></canvas>
+
+<script>
+const canvas = document.getElementById('screen');
+const ctx = canvas.getContext('2d');
+let mouseX = 0, mouseY = 0;
+
+// Set canvas size
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('mousemove', (e) => { mouseX = e.x; mouseY = e.y; });
+
+// Advanced parameters
+const NUM_LINES = 100;
+const MAX_SPEED = 5;
+const PARTICLE_COUNT = 2000;
+const FORCE_FIELD_RADIUS = 150;
+
+// Color presets
+const colorSchemes = [
+    { base: 180, range: 120 },  // Cool blues
+    { base: 330, range: 60 },   // Magenta/purple
+    { base: 60, range: 60 },    // Gold/yellow
+    { base: 150, range: 90 }    // Green/cyan
+];
+
+class Particle {
+    constructor() {
+        this.reset(true);
+    }
+
+    reset(initial = false) {
+        this.x = initial ? Math.random() * canvas.width : mouseX;
+        this.y = initial ? Math.random() * canvas.height : mouseY;
+        this.vx = (Math.random() - 0.5) * 4;
+        this.vy = (Math.random() - 0.5) * 4;
+        this.life = initial ? Math.random() : 1;
+        this.decay = 0.92 + Math.random() * 0.06;
+        this.size = 2 + Math.random() * 3;
+        this.hue = Math.random() * 360;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vx *= 0.98;
+        this.vy *= 0.98;
+        this.life *= this.decay;
+        
+        if (this.life < 0.1) this.reset();
+    }
+
+    draw() {
+        const alpha = Math.min(this.life, 0.8);
+        ctx.fillStyle = `hsla(${this.hue}, 100%, 70%, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size * this.life, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+class EnergyLine {
+    constructor() {
+        this.reset();
+        this.particles = Array.from({ length: 10 }, () => new Particle());
+    }
+
+    reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.angle = Math.random() * Math.PI * 2;
+        this.speed = 0.5 + Math.random() * MAX_SPEED;
+        this.length = 30 + Math.random() * 120;
+        this.hue = Math.random() * 360;
+        this.curve = Math.random() * 2 - 1;
+        this.scheme = colorSchemes[Math.floor(Math.random() * colorSchemes.length)];
+    }
+
+    update() {
+        // Mouse interaction
+        const dx = mouseX - this.x;
+        const dy = mouseY - this.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        
+        if (dist < FORCE_FIELD_RADIUS) {
+            this.angle = Math.atan2(dy, dx) + Math.PI;
+            this.speed = MAX_SPEED * (1 - dist/FORCE_FIELD_RADIUS);
+        }
+
+        // Dynamic movement
+        this.angle += (Math.random() - 0.5) * 0.1 + Math.sin(Date.now() * 0.001) * 0.01;
+        this.x += Math.cos(this.angle) * this.speed;
+        this.y += Math.sin(this.angle) * this.speed;
+        this.hue = this.scheme.base + Math.sin(Date.now() * 0.001) * this.scheme.range;
+
+        // Boundary wrapping
+        if (this.x < -50) this.x = canvas.width + 50;
+        if (this.x > canvas.width + 50) this.x = -50;
+        if (this.y < -50) this.y = canvas.height + 50;
+        if (this.y > canvas.height + 50) this.y = -50;
+
+        // Update particles
+        if (Math.random() < 0.4) {
+            const p = this.particles.find(p => p.life < 0.2);
+            if (p) p.reset();
+        }
+    }
+
+    draw() {
+        // Main line with gradient
+        const endX = this.x + Math.cos(this.angle) * this.length;
+        const endY = this.y + Math.sin(this.angle) * this.length;
+        
+        const gradient = ctx.createLinearGradient(this.x, this.y, endX, endY);
+        gradient.addColorStop(0, `hsla(${this.hue}, 100%, 50%, 0.8)`);
+        gradient.addColorStop(1, `hsla(${(this.hue + 60) % 360}, 100%, 50%, 0.2)`);
+        
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(endX, endY);
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Glow effect
+        ctx.beginPath();
+        ctx.arc(endX, endY, 10, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${this.hue}, 100%, 50%, 0.3)`;
+        ctx.fill();
+    }
+}
+
+// Create elements
+const lines = Array.from({ length: NUM_LINES }, () => new EnergyLine());
+const particles = Array.from({ length: PARTICLE_COUNT }, () => new Particle());
+
+// Animation loop
+function animate() {
+    // Create oil blot fade effect
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Add colored oil blots
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 5; i++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        const radius = 30 + Math.random() * 70;
+        const hue = Math.random() * 360;
+        ctx.fillStyle = `hsla(${hue}, 85%, 60%, 0.08)`;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    // Draw particles
+    ctx.globalCompositeOperation = 'lighter';
+    particles.forEach(p => {
+        p.update();
+        p.draw();
+    });
+    
+    // Draw energy lines
+    ctx.globalCompositeOperation = 'screen';
+    lines.forEach(line => {
+        line.update();
+        line.draw();
+    });
+    
+    requestAnimationFrame(animate);
+}
+
+animate();
+
+// Double click to fullscreen
+canvas.addEventListener('dblclick', () => {
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        canvas.requestFullscreen().catch(console.error);
+    }
+});
+</script>
+</body>
+</html>
